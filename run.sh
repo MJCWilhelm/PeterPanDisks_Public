@@ -3,6 +3,7 @@
 EPE=("1e-8" "1e-9" "1e-10" "-1")
 ALPHA=("1e-4" "1e-3")
 
+mkdir data
 cd src
 
 for E in ${EPE[*]}; do
