@@ -94,9 +94,10 @@ logM = np.log10(Mdisk[mask]/Mstar_unique[1]*MassJupSun)
 
 
 plot_trajectories(disk_radii_1, disk_masses_1, logR, logM, '$\\alpha=10^{-3}$')
+plt.savefig('../figures/Fig5_a1e-3.pdf')
 
 plot_trajectories(disk_radii_2, disk_masses_2, logR, logM, '$\\alpha=10^{-4}$')
-
+plt.savefig('../figures/Fig5_a1e-4.pdf')
 
 
 # Paper figure 1
@@ -141,6 +142,4 @@ plt.xlabel('M$_*$ [M$_\\odot$]')
 plt.ylabel('$\\dot{\\mathrm{M}}_\\mathrm{d}$ [M$_\\odot$ yr$^{-1}$]')
 
 plt.legend(loc='upper right', frameon=False)
-
-
-plt.show()
+plt.savefig('../figures/Fig1_masslossrates.pdf')

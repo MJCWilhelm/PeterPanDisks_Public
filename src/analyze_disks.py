@@ -7,6 +7,7 @@ import matplotlib.cm as cm
 from amuse.units import units, constants
 
 
+# Peter Pan disk data from Silverberg et al. 2020 (first six, final one from Lee et al. 2020)
 Silverberg2020_age = np.array([45., 42., 42., 42., 45., 45., 55.])
 Silverberg2020_age_upper = np.array([11., 6., 6., 6., 11., 11., 11.])
 Silverberg2020_age_lower = np.array([7., 4., 4., 4., 7., 7., 7.])
@@ -21,12 +22,20 @@ Silverberg2020_accr_lower = 10.**(logSilverberg2020_accr) - 10.**(logSilverberg2
 
 
 
-def load_data (EPE, B, A, folder='../data/', label=''):
+def load_data (EPE, A, folder='../data/'):
+    '''
+    load data
 
-    var_coord = np.argmax([len(EPE), len(B), len(A)])
-    N = np.max([len(EPE), len(B), len(A)])
+    EPE: EPE rates to load (array)
+    A: viscosity to load (array)
+    folder: where to find data
+    '''
 
-    coords = np.zeros(3, dtype=int)
+    # load multiple files if EPE or A has more than one element
+    var_coord = np.argmax([len(EPE), len(A)])
+    N = np.max([len(EPE), len(A)])
+
+    coords = np.zeros(2, dtype=int)
 
     t_array = np.loadtxt(folder+'EPE{a}_A{c}/time.dat'.format(
         a=EPE[0], c=A[0]))
@@ -47,22 +56,23 @@ def load_data (EPE, B, A, folder='../data/', label=''):
         coords[var_coord] = i
 
         disk_mass[i] = np.loadtxt(folder+'EPE{a}_A{c}/gas_mass.dat'.format(
-            a=EPE[coords[0]], c=A[coords[2]]))
+            a=EPE[coords[0]], c=A[coords[1]]))
         accretion_rate[i] = np.loadtxt(
             folder+'EPE{a}_A{c}/accr_rate.dat'.format(
-            a=EPE[coords[0]], c=A[coords[2]]))
+            a=EPE[coords[0]], c=A[coords[1]]))
         disk_radius[i] = np.loadtxt(
             folder+'EPE{a}_A{c}/disk_radius.dat'.format(
-            a=EPE[coords[0]], c=A[coords[2]]))
+            a=EPE[coords[0]], c=A[coords[1]]))
         epe_rate[i] = np.loadtxt(
             folder+'EPE{a}_A{c}/epe_rate.dat'.format(
-            a=EPE[coords[0]], c=A[coords[2]]))
+            a=EPE[coords[0]], c=A[coords[1]]))
 
         disp_times[i] = np.loadtxt(
             folder+'EPE{a}_A{c}/disp_times.dat'.format(a=EPE[coords[0]],
-            b=B[coords[1]], c=A[coords[2]]),
+            c=A[coords[1]]),
             unpack=True)[1]
 
+        # find moment at which accretion rates drops below 1e-14 MSun/yr (effectively 0)
         accr_times[i] = t_array[ np.argmax(accretion_rate[i] < 1e-14, axis=0) ]
         mask_nogap = accretion_rate[i,-1] > 1e-14
         accr_times[i, mask_nogap ] = disp_times[i, mask_nogap ]
@@ -81,7 +91,6 @@ def load_data (EPE, B, A, folder='../data/', label=''):
         't_disp': disp_times,
         't_accr': accr_times,
         'EPE': EPE,
-        'B': B,
         'A': A,
     }
 
@@ -89,6 +98,9 @@ def load_data (EPE, B, A, folder='../data/', label=''):
 
 
 def plot_stellarmass_lifetime (DATA, t_disp_10G0):
+    '''
+    plot lifetimes (dispersal and cessation of accretion) as a function of stellar mass
+    '''
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -133,7 +145,11 @@ def plot_stellarmass_lifetime (DATA, t_disp_10G0):
 
 
 def plot_time_accrrate (DATA, index=-1):
+    '''
+    plot accretion rate through time, for those discs that live to at least 50 Myr
+    '''
 
+    # initial conditions, needed for nominal accretion rate
     beta = 1.6
     disk_radii = ( 10.**beta * 100.**-0.5 * 0.17/2e-3 * DATA['Mstar']**0.5 )**(1./(beta - 0.5))
     disk_masses = ( (2e-3)**(1./beta) * 0.17**-2. * 100./10. / DATA['Mstar'] )**(1./(1./beta - 2.))
@@ -149,16 +165,20 @@ def plot_time_accrrate (DATA, index=-1):
 
 
     for i in range(len(DATA['Mstar'])):
-        if np.isnan(DATA['t_disp'][index,i]) or DATA['t_disp'][index,i] >= 50.:
+        if np.isnan(DATA['t_disp'][index,i]) or DATA['t_disp'][index,i] >= 50.: # plot all non-dispersed, and post-50 Myr disks
+            # actual accretion rate
+            ax.plot(DATA['t'][::1000], DATA['Mdot_accr'][index,:,i][::1000], c=scalarmap.to_rgba(DATA['Mstar'][i]))
+
+            # estimate nominal accretion rate evolution
             nu = float(DATA['A'][0]) * constants.kB/constants.u * (Tm[i]|units.K)/disk_radii[i]**0.5 * ((disk_radii[i]|units.AU)**3/(constants.G*(DATA['Mstar'][i]|units.MSun)))**0.5
             t_viscous = ((disk_radii[i]|units.AU)**2 / (3.*nu)).value_in(units.Myr)
 
             Mdot_nom = 10.**( 1.81*np.log10(DATA['Mstar'][i]) - 8.25 ) \
                     * (1. + DATA['t']/t_viscous)**(-3./2.)
 
-            ax.plot(DATA['t'][::1000], DATA['Mdot_accr'][index,:,i][::1000], c=scalarmap.to_rgba(DATA['Mstar'][i]))
             ax.plot(DATA['t'], Mdot_nom, c=scalarmap.to_rgba(DATA['Mstar'][i]), linestyle=':')
 
+    # data from Silverberg et al. 2020 and Lee et al. 2020. Some values offset for visibilty
     ax.errorbar(Silverberg2020_age+3.*np.array([0., 0., 0.2, 0.1, 0.1, 0.2, 0.]), Silverberg2020_accr, fmt='k.', capsize=5, linewidth=1.,
         xerr=np.array([Silverberg2020_age_lower, Silverberg2020_age_upper]),
         yerr=np.array([Silverberg2020_accr_lower, Silverberg2020_accr_upper]))
@@ -190,11 +210,10 @@ def plot_time_accrrate (DATA, index=-1):
 if __name__ == '__main__':
 
     EPE = ['1E-8', '1E-9', '1E-10']
-    B = ['1_6']
 
-    DATA1 = load_data(EPE, B, ['1E-3'], label='_XEvol')
-    DATA2 = load_data(EPE, B, ['1E-4'], label='_XEvol')
-
+    # load data
+    DATA1 = load_data(EPE, ['1E-3'], label='_XEvol')
+    DATA2 = load_data(EPE, ['1E-4'], label='_XEvol')
 
     t_disp_xray_1 = np.loadtxt('../data/F1E1_A1E-3/disp_times.dat', unpack=True)[1]
     t_disp_xray_2 = np.loadtxt('../data/F1E1_A1E-4/disp_times.dat', unpack=True)[1]
@@ -202,11 +221,14 @@ if __name__ == '__main__':
 
     # Paper figure 2
     plot_stellarmass_lifetime (DATA1, t_disp_xray_1)
+    plt.savefig('../figures/Fig2_a1e-3.pdf')
+
     plot_stellarmass_lifetime (DATA2, t_disp_xray_2)
+    plt.savefig('../figures/Fig2_a1e-4.pdf')
 
     # Paper figure 3
     plot_time_accrrate (DATA1)
+    plt.savefig('../figures/Fig3_a1e-3.pdf')
+
     plot_time_accrrate (DATA2)
-
-
-    plt.show()
+    plt.savefig('../figures/Fig3_a1e-4.pdf')
